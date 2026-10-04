@@ -41,6 +41,7 @@ $('#import').onclick=$('#mobileImport').onclick=()=>$('#importFile').click();
 $('#importFile').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>10000000)throw Error('Файл слишком большой');const raw=JSON.parse(await file.text());if(raw.version!==1||!raw.progress)throw Error('Это не файл прогресса');state={...state,...cleanProgress(raw.progress)};save();render();toast('Прогресс импортирован')}catch(err){toast('Не удалось импортировать: '+err.message)}finally{e.target.value=''}});
 function route(){const hash=location.hash.slice(1);if(hash.startsWith('material/')){let id;try{id=decodeURIComponent(hash.slice(9))}catch{location.hash='';return}showDetail(id);return}stopPlayer();active=null;$('#detail').hidden=true;$('#library').hidden=false;document.body.classList.remove('view-material');document.title='Мой курс — Гендерная психология';const oldSection=section;section=courses.some(c=>c.id===hash)?hash:'all';$('#mobileSection').value=section;renderNav();render();window.scrollTo(0,oldSection===section?libraryScroll:0);}
 window.addEventListener('hashchange',route);
+renderNav();
 route();
 
 function stopPlayer(){const v=$('#courseVideo');v.pause();v.removeAttribute('src');v.load()}
