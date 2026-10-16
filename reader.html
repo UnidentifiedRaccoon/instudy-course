@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Просмотр документа</title><link rel="stylesheet" href="reader.css"></head><body>
+<p id="status" role="status">Открываем документ…</p>
+<main id="viewport" tabindex="0" aria-label="Страницы документа"><div id="sheet"><canvas aria-label="Страница документа"></canvas><div class="textLayer"></div></div></main>
+<footer class="toolbar"><button id="prev" aria-label="Предыдущая страница">←</button><button id="pageCounter" aria-label="Перейти к странице" aria-expanded="false" aria-controls="pageJump">1 / …</button><button id="next" aria-label="Следующая страница">→</button><button id="resetZoom" hidden>Сбросить масштаб</button>
+<form id="pageJump" hidden><label for="page">Страница</label><input id="page" type="number" min="1" value="1" inputmode="numeric" required><button type="submit">Перейти</button><button type="button" id="cancelJump" aria-label="Закрыть переход к странице">×</button></form>
+</footer><script type="module" src="reader.js"></script></body></html>
