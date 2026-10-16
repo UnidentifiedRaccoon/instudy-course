@@ -1,4 +1,78 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Мой курс — Гендерная психология</title><link rel="stylesheet" href="style.css"></head><body>
-<aside><div class="brand">Мой курс</div><p class="subtitle">Гендерная психология</p><nav aria-label="Разделы курса" id="navigation"></nav><div class="backup"><button id="export">Экспорт прогресса</button><button id="import">Импорт прогресса</button><input id="importFile" type="file" accept="application/json,.json" hidden></div></aside>
-<main id="library"><header><h1>Материалы курса</h1><p id="summary"></p></header><label class="mobile-nav">Раздел курса<select id="mobileSection"></select></label><div class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input type="search" id="query" aria-label="Найти материал" placeholder="Найти материал"></div><div class="filters" aria-label="Фильтр материалов"><button data-filter="all" aria-pressed="true">Все</button><button data-filter="document" aria-pressed="false">Документы</button><button data-filter="video" aria-pressed="false">Видео</button><button data-filter="repeat" aria-pressed="false">Повторить</button></div><div id="results"></div><footer><div class="mobile-backup"><button id="mobileExport">Экспорт прогресса</button><button id="mobileImport">Импорт прогресса</button></div></footer></main>
-<main id="detail" class="material-screen" hidden aria-labelledby="detailTitle"><div class="screen-bar"><button id="close" aria-label="Назад к материалам">← Материалы</button><span id="detailCourse"></span><button id="showNotes">Заметки</button><details id="materialMenu"><summary aria-label="Действия с материалом">⋯</summary><div class="menu-content"><div class="detail-actions"><a id="detailOpen" class="primary" target="_blank" rel="noopener">Открыть материал</a></div><label class="repeat-label"><input id="detailDone" type="checkbox"> Пройдено</label><label class="repeat-label"><input id="repeat" type="checkbox"> Повторить</label></div></details></div><div id="detailFormat" class="format"></div><h2 id="detailTitle"></h2><div id="documentPanel" hidden><iframe id="documentReader" title="Просмотр документа" allow="fullscreen" allowfullscreen></iframe><p id="documentError" role="status" hidden></p></div><div id="videoPanel" hidden><video id="courseVideo" controls preload="metadata" playsinline></video><p id="playerStatus" role="status"></p><details><summary>Параметры видео</summary><div id="sourceChoice"><label for="videoSource">Источник</label><select id="videoSource"></select></div><label for="backupUrl">Резервная ссылка</label><input id="backupUrl" type="url" placeholder="https://…" autocomplete="off"><button id="saveBackup">Сохранить ссылку</button><p id="backupStatus" role="status" class="muted"></p></details></div><section id="notesPanel" hidden><h2>Мои заметки</h2><label class="note-label" for="note">Мои заметки</label><textarea aria-label="Мои заметки" id="note" rows="7" maxlength="20000" placeholder="Главные мысли, вопросы и идеи для практики…"></textarea><p id="saveStatus" class="muted" aria-live="polite"></p></section></main><div id="toast" role="status"></div><script src="data.js"></script><script src="preview-manifest.js"></script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Мой курс — Гендерная психология</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#libraryTitle">К материалам</a>
+  <aside>
+    <a class="brand" href="#">Мой курс</a>
+    <p class="subtitle">Гендерная психология</p>
+    <nav aria-label="Разделы курса" id="navigation"></nav>
+  </aside>
+  <main id="library">
+    <header class="library-heading">
+      <div><h1 id="libraryTitle" tabindex="-1">Материалы курса</h1><p id="summary"></p></div>
+      <details id="libraryMenu" class="action-menu">
+        <summary class="icon-button" aria-label="Действия с курсом" title="Действия с курсом"><span data-icon="more"></span></summary>
+        <div class="menu-content">
+          <button id="export"><span data-icon="download"></span>Экспорт данных</button>
+          <button id="import"><span data-icon="upload"></span>Импорт данных</button>
+        </div>
+      </details>
+    </header>
+    <input id="importFile" type="file" accept="application/json,.json" hidden>
+    <label class="mobile-nav" for="mobileSection">Раздел курса<select id="mobileSection"></select></label>
+    <div class="search"><span data-icon="search"></span><input type="search" id="query" aria-label="Найти материал" placeholder="Найти материал"></div>
+    <div class="filters" role="group" aria-label="Фильтр материалов">
+      <button data-filter="all" aria-pressed="true">Все</button>
+      <button data-filter="document" aria-pressed="false">Документы</button>
+      <button data-filter="video" aria-pressed="false">Видео</button>
+      <button data-filter="repeat" aria-pressed="false">Повторить</button>
+    </div>
+    <div id="results"></div>
+  </main>
+  <main id="detail" class="material-screen" hidden aria-labelledby="detailTitle">
+    <div class="screen-bar">
+      <button id="close" class="text-button" aria-label="Назад к материалам"><span data-icon="back"></span><span id="backLabel">Материалы</span></button>
+      <button id="showNotes" class="text-button"><span data-icon="notes"></span>Заметки</button>
+      <details id="materialMenu" class="action-menu">
+        <summary class="icon-button" aria-label="Действия с материалом" title="Действия с материалом"><span data-icon="more"></span></summary>
+        <div class="menu-content">
+          <a id="detailOpen" target="_blank" rel="noopener"><span id="openIcon"></span><span id="openLabel">Открыть материал</span></a>
+          <button id="repeat" aria-pressed="false"><span data-icon="bookmark"></span><span id="repeatLabel">Повторить позже</span></button>
+          <details id="videoSettings" hidden>
+            <summary>Параметры видео</summary>
+            <div id="sourceChoice"><label for="videoSource">Источник</label><select id="videoSource"></select></div>
+            <label for="backupUrl">Резервная ссылка</label>
+            <input id="backupUrl" type="url" placeholder="https://…" autocomplete="off">
+            <button id="saveBackup">Сохранить ссылку</button>
+            <p id="backupStatus" role="status" class="muted"></p>
+          </details>
+        </div>
+      </details>
+    </div>
+    <div class="material-heading"><span id="detailFormat"></span><h1 id="detailTitle"></h1></div>
+    <div id="documentPanel" hidden>
+      <iframe id="documentReader" title="Просмотр документа" allow="fullscreen" allowfullscreen></iframe>
+      <p id="documentError" role="status" hidden></p>
+    </div>
+    <div id="videoPanel" hidden><video id="courseVideo" controls preload="metadata" playsinline></video><p id="playerStatus" role="status"></p></div>
+    <section id="notesPanel" hidden>
+      <h2><label for="note">Мои заметки</label></h2>
+      <textarea id="note" rows="7" maxlength="20000" placeholder="Главные мысли, вопросы и идеи для практики…"></textarea>
+      <p id="saveStatus" class="muted" aria-live="polite"></p>
+    </section>
+  </main>
+  <div id="toast" role="status"></div>
+  <script src="data.js"></script>
+  <script src="preview-manifest.js"></script>
+  <script src="icons.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
