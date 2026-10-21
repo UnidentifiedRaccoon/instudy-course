@@ -64,17 +64,30 @@ window.CourseAttestation = (() => {
     const match=text.match(/^(.{1,28}?)( — |: )/);
     return match?`<strong>${escape(match[1])}</strong>${escape(text.slice(match[1].length))}`:escape(text);
   }
-  function studyMarkup(q,blocks=q.study||[{type:'paragraph',text:q.answer}]){
+  function contentMarkup(blocks,headingTag='h3'){
     return blocks.map(block=>{
-      const heading=block.label?`<h3>${escape(block.label)}</h3>`:'';
+      const heading=block.label?`<${headingTag}>${escape(block.label)}</${headingTag}>`:'';
+      if(block.type==='heading')return `<${headingTag}>${escape(block.text)}</${headingTag}>`;
+      if(block.type==='definition')return `<div class="att-answer-block">${heading}${block.lead?`<p>${escape(block.lead)}</p>`:''}<dl>${block.items.map(item=>`<dt>${escape(item.term)}</dt><dd>${escape(item.text)}</dd>`).join('')}</dl></div>`;
+      if(block.type==='comparison'){
+        if(block.columns)return `<div class="att-comparison-groups">${block.columns.map((items,i)=>contentMarkup([{type:'list',label:block.head[i],items}],headingTag)).join('')}</div>`;
+        return `<table class="att-comparison"><thead><tr>${block.head.map(text=>`<th scope="col">${escape(text)}</th>`).join('')}</tr></thead><tbody>${block.rows.map(row=>`<tr>${row.map(text=>`<td>${escape(text)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      }
       if(block.type==='paragraph')return `<div class="att-answer-block">${heading}<p>${emphasize(block.text)}</p></div>`;
-      const numbered=block.items.every(s=>/^\d+\. /.test(s)),tag=block.ordered||numbered?'ol':'ul';
-      return `<div class="att-answer-block">${heading}${block.lead?`<p>${emphasize(block.lead)}</p>`:''}<${tag}>${block.items.map(s=>`<li>${emphasize(numbered?s.replace(/^\d+\. /,''):s)}</li>`).join('')}</${tag}></div>`;
+      const itemText=item=>typeof item==='string'?item:item.text;
+      const numbered=block.items.every(item=>/^\d+[.)]\s*/.test(itemText(item))),tag=block.ordered||numbered?'ol':'ul';
+      const items=block.items.map(item=>{
+        const text=itemText(item),number=numbered?text.match(/^(\d+)[.)]\s*/):null;
+        return `<li${number?` value="${Number(number[1])}"`:''}>${emphasize(number?text.slice(number[0].length):text)}${item.children?contentMarkup(item.children,headingTag):''}</li>`;
+      }).join('');
+      return `<div class="att-answer-block">${heading}${block.lead?`<p>${emphasize(block.lead)}</p>`:''}<${tag}>${items}</${tag}></div>`;
     }).join('');
   }
+  function studyMarkup(q,blocks=q.study||[{type:'paragraph',text:q.answer}]){return contentMarkup(blocks)}
+  function sourceContent(source){return contentMarkup(source.content||[{type:'paragraph',text:source.quote}],'h5')}
   function sourceMarkup(id,q){
     const source=data.sources[id],link=`#material/${source.materialId}?page=${source.page}&source=${id}&from=attestation/question/${q.id}`;
-    return `<section class="att-source"><h4>${escape(source.section)}</h4><blockquote>${escape(source.quote)}</blockquote><a class="att-source-link" href="${link}">${icon('document')}Открыть страницу ${source.page}${icon('forward')}</a></section>`;
+    return `<section class="att-source"><h4>${escape(source.section)}</h4><blockquote class="att-source-content">${sourceContent(source)}</blockquote><a class="att-source-link" href="${link}">${icon('document')}Открыть страницу ${source.page}${icon('forward')}</a></section>`;
   }
   function sourcesMarkup(q){
     const docs=new Map();for(const id of q.sources){const s=data.sources[id];if(!docs.has(s.materialId))docs.set(s.materialId,[]);docs.get(s.materialId).push(id)}
@@ -86,7 +99,7 @@ window.CourseAttestation = (() => {
   }
   function evidenceMarkup(q){
     const external=!!q.externalSources?.length;
-    const course=`${external?'<h3 class="att-evidence-label">Материалы курса</h3>':''}<p class="att-caption">${q.courseSourceNote?escape(q.courseSourceNote):q.status==='missing'?escape(q.note):'Ниже — дословные цитаты из курса.'} Ссылки открывают нужную страницу и выделяют фрагмент.</p>${sourcesMarkup(q)}`;
+    const course=`${external?'<h3 class="att-evidence-label">Материалы курса</h3>':''}<p class="att-caption">${q.courseSourceNote?escape(q.courseSourceNote):q.status==='missing'?escape(q.note):'Ниже — цитаты из курса. Формулировки сохранены; абзацы и списки оформлены для чтения.'} Ссылки открывают нужную страницу и выделяют фрагмент.</p>${sourcesMarkup(q)}`;
     return `<details class="att-disclosure att-evidence" data-fold="sources"><summary>${q.status==='missing'?'Связанный материал':'Цитаты и источники'} <span>${external?'курс и внешние':`${q.sources.length} ${q.sources.length===1?'фрагмент':q.sources.length<5?'фрагмента':'фрагментов'}`}</span></summary>${externalSourcesMarkup(q)}${course}</details>`;
   }
   function optionsMarkup(q,order,selected){
@@ -176,5 +189,5 @@ window.CourseAttestation = (() => {
     if(view){for(const el of host.querySelectorAll('details[data-fold]'))el.open=view.open.includes(el.dataset.fold);const target=[...host.querySelectorAll('a[href]')].find(a=>a.getAttribute('href')===view.focus);(target||host.querySelector('#attTitle'))?.focus({preventScroll:true});requestAnimationFrame(()=>window.scrollTo(0,view.scroll))}
     else focusTop();
   }
-  return {render,captureView};
+  return {render,captureView,sourceContent};
 })();

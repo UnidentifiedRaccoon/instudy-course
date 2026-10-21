@@ -140,7 +140,7 @@ function setupDocument(){
   if(preview?.path){
     const params=new URLSearchParams({file:preview.path});const sourceId=materialContext.get('source'),source=window.ATTESTATION_DATA?.sources[sourceId];
     if(source&&source.materialId===active.id){params.set('page',source.page);params.set('source',sourceId);
-      $('#sourceContext').hidden=false;$('#sourceContext').innerHTML=`<p><strong>Источник ответа · страница ${source.page}</strong> · ${esc(source.section)}</p><details><summary>Цитата из ответа</summary><blockquote>${esc(source.quote)}</blockquote></details>`;
+      $('#sourceContext').hidden=false;$('#sourceContext').innerHTML=`<p><strong>Источник ответа · страница ${source.page}</strong> · ${esc(source.section)}</p><details><summary>Цитата из ответа</summary><blockquote class="att-source-content">${window.CourseAttestation.sourceContent(source)}</blockquote></details>`;
     }else if(/^\d+$/.test(materialContext.get('page')||''))params.set('page',materialContext.get('page'));
     $('#documentReader').src='reader.html?'+params;$('#documentReader').title=active.title;
   }else $('#documentError').textContent='Предпросмотр пока недоступен. Можно скачать оригинал.';

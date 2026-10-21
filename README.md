@@ -72,7 +72,23 @@ PDF.js, обе области схем, полная попытка из 58 уп
 Каждый билет показывает исходную формулировку один раз, затем структурированный
 план: определения, перечисления и шаги. Поле `study` в данных отвечает только
 за разбивку исходного `answer`; проверка данных сравнивает все слова, чтобы при
-оформлении не исчезали факты или оговорки. Точные цитаты не изменялись.
+оформлении не исчезали факты или оговорки.
+
+Поле `content` у каждого источника задаёт смысловую структуру цитаты: абзацы,
+определения, списки и вложенные примеры, шаги и сравнения. Она используется
+как в билете, так и в раскрываемой цитате над просмотрщиком. Это редакторская
+разметка для чтения, а не копия расположения блоков на слайде. В схемах СТАР,
+здоровой конфронтации и LIGHT восстановлен порядок текста после извлечения
+из PDF; заголовки слайдов перенесены перед относящимся к ним содержимым.
+Формулировки, оговорки и ссылки на страницы сохранены. Проверка данных
+обходит вложенные блоки и сверяет весь текст с цитатой или планом ответа.
+
+После этой правки проверены все 54 билета с раскрытыми источниками в Chrome
+на ширинах 320, 390 и 1440 px, переходы по исправленным цитатам и возврат к билету,
+скрытие ответа и встроенная самопроверка. На презентации первого модуля проверены
+40 переходов между страницами 17–37 на двух размерах экрана, увеличение,
+сброс масштаба и возврат из заметок. Ошибок приложения и горизонтального
+переполнения нет; физические телефоны отдельно не проверялись.
 
 В режиме чтения скрывается общее меню дисциплин. «Скрыть ответ» помогает
 проговорить билет без подсказки; выбор сохраняется при переходе к следующему
@@ -111,6 +127,7 @@ Open http://127.0.0.1:8880/ while running `python3 -m http.server 8880 --bind 12
 - PDF.js 5.6.205 and its worker/fonts/CMaps/WASM are vendored under `vendor/pdfjs`, including its Apache-2.0 license. No external document-viewing service is used.
 - Page navigation, manual page entry, gesture/double-click zoom, automatic page fitting, text selection and local page-position persistence are available. Scanned pages need OCR before text selection is possible.
 - Only the active page is rendered. Canvas pixel count is capped for mobile memory safety. Large PDF downloads still depend on the hosting server's range support.
+- PDF.js text-measurement canvases are hidden from layout. Pages without selectable text therefore keep the same available viewing area as text pages.
 
 Validation: 94 valid PDF sources/previews; representative PDF, PPTX, PPT, DOCX, DOC and XLSX render in the in-app browser. Mobile 390px and desktop 1024px inspected. Page change, zoom, fullscreen, page persistence tested. Physical iOS/Android devices and every page of every document have not been visually tested.
 
