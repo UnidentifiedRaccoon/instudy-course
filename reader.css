@@ -30,3 +30,7 @@ body:fullscreen { height: 100vh; }
   #viewport { padding: 8px; }
   #pageJump { gap: 6px; padding: 8px; }
 }
+
+#sourceHint { flex:none; margin:0; padding:8px 16px; font-size:12px; line-height:1.5; color:#674b22; background:#faf4df; }
+.textLayer .source-highlight { background: #f3c34f66; border-radius:2px; }
+.source-region { position:absolute; pointer-events:none; border:2px solid #bd8b1b; background:#f3c34f22; }

@@ -7,6 +7,7 @@
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="attestation.css">
 </head>
 <body>
   <a class="skip-link" href="#libraryTitle">К материалам</a>
@@ -37,6 +38,7 @@
     </div>
     <div id="results"></div>
   </main>
+  <main id="attestation" hidden aria-labelledby="attTitle"></main>
   <main id="detail" class="material-screen" hidden aria-labelledby="detailTitle">
     <div class="screen-bar">
       <button id="close" class="text-button" aria-label="Назад к материалам"><span data-icon="back"></span><span id="backLabel">Материалы</span></button>
@@ -58,6 +60,7 @@
       </details>
     </div>
     <div class="material-heading"><span id="detailFormat"></span><h1 id="detailTitle"></h1></div>
+    <div id="sourceContext" hidden></div>
     <div id="documentPanel" hidden>
       <iframe id="documentReader" title="Просмотр документа" allow="fullscreen" allowfullscreen></iframe>
       <p id="documentError" role="status" hidden></p>
@@ -73,6 +76,8 @@
   <script src="data.js"></script>
   <script src="preview-manifest.js"></script>
   <script src="icons.js"></script>
+  <script src="attestation-data.js"></script>
+  <script src="attestation.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

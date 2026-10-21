@@ -3,7 +3,7 @@ const data=window.COURSE_DATA || {courses:[],videoStatus:{saved:0,queued:0,downl
 const $=s=>document.querySelector(s);
 const {icon,materialType}=window.CourseUI;
 const key='instudy-course-progress-v1';
-let state={};let section='all',filter='all',active=null;let libraryScroll=0;
+let state={};let section='all',filter='all',active=null;let libraryScroll=0;let materialContext=new URLSearchParams();
 try{state=JSON.parse(localStorage.getItem(key)||'{}')}catch{}
 const courses=data.courses, all=courses.flatMap(c=>c.items.map(x=>({...x,course:c.id})));
 const known=new Set(all.map(x=>x.id));
@@ -18,8 +18,9 @@ function toast(text){$('#toast').textContent=text;$('#toast').style.display='blo
 function save(){try{localStorage.setItem(key,JSON.stringify(state));return true}catch{toast('Не удалось сохранить. Экспортируйте данные в файл.');return false}}
 function progress(id){return state[id]||(state[id]={done:false,repeat:false,note:''})}
 function selectSection(id){location.hash=id==='all'?'':id}
-function renderNav(){$('#navigation').innerHTML=[{id:'all',label:'Все материалы'},...courses].map(c=>`<button data-section="${c.id}" class="${section===c.id?'selected':''}" ${section===c.id?'aria-current="page"':''}>${esc(c.label)}</button>`).join('')}
-$('#mobileSection').innerHTML=[{id:'all',label:'Все материалы'},...courses].map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('');
+const navSections=[{id:'all',label:'Все материалы'},{id:'attestation',label:'Аттестация'},...courses.map(c=>c.id==='3941'?{...c,label:'Документы к аттестации'}:c)];
+function renderNav(){$('#navigation').innerHTML=navSections.map(c=>`<button data-section="${c.id}" class="${section===c.id?'selected':''}" ${section===c.id?'aria-current="page"':''}>${esc(c.label)}</button>`).join('')}
+$('#mobileSection').innerHTML=navSections.map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('');
 function typeMarkup(item) {
   const type=materialType(item);
   const label=type.label+(item.kind==='video'?'':' · '+item.format);
@@ -62,7 +63,7 @@ function showDetail(id) {
   $('#saveStatus').textContent='';
   updateRepeat();
   setupPlayer();setupDocument();
-  $('#library').hidden=true;
+  $('#library').hidden=true;$('#attestation').hidden=true;
   $('#detail').hidden=false;
   document.body.classList.add('view-material');
   document.title=active.title+' — Мой курс';
@@ -76,33 +77,42 @@ $('#query').addEventListener('input',render);
 $('#results').addEventListener('click',e=>{
   if(e.target.closest('[data-open]')&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&e.button===0)libraryScroll=window.scrollY;
 });
-$('.skip-link').onclick=e=>{e.preventDefault();$('#libraryTitle').focus();};
+$('.skip-link').onclick=e=>{e.preventDefault();($('#attestation').hidden?$('#libraryTitle'):$('#attTitle'))?.focus();};
 $('#note').addEventListener('input',()=>{if(active){progress(active.id).note=$('#note').value;$('#saveStatus').textContent=save()?'':'Не удалось сохранить заметку. Скопируйте её перед закрытием.'}});
 $('#repeat').addEventListener('click',()=>{
   if(!active)return;
   progress(active.id).repeat=!progress(active.id).repeat;
   save();updateRepeat();render();
 });
-$('#close').addEventListener('click',()=>{if(document.body.classList.contains('view-notes')){location.hash='material/'+encodeURIComponent(active.id);return}history.replaceState(null,'',location.pathname+location.search+(section==='all'?'':'#'+section));route()});
+function materialHash(notes=false){return 'material/'+encodeURIComponent(active.id)+(notes?'/notes':'')+(materialContext.size?'?'+materialContext.toString():'')}
+function detailBack(){const from=materialContext.get('from');return from&&/^attestation(?:\/(?:question\/\d+|answers|test(?:\/run)?))?$/.test(from)?from:(section==='all'?'':section)}
+$('#close').addEventListener('click',()=>{if(document.body.classList.contains('view-notes')){location.hash=materialHash();return}location.hash=detailBack()});
 function exportProgress(){const blob=new Blob([JSON.stringify({version:1,exported:new Date().toISOString(),progress:state},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='мой-курс-данные.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 $('#export').onclick=()=>{exportProgress();$('#libraryMenu').open=false;$('#libraryMenu>summary').focus()};
 $('#import').onclick=()=>{$('#importFile').click();$('#libraryMenu').open=false;$('#libraryMenu>summary').focus()};
 $('#importFile').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>10000000)throw Error('Файл слишком большой');const raw=JSON.parse(await file.text());if(raw.version!==1||!raw.progress)throw Error('Это не файл данных курса');state={...state,...cleanProgress(raw.progress)};save();render();toast('Данные импортированы')}catch(err){toast('Не удалось импортировать: '+err.message)}finally{e.target.value=''}});
 function route() {
-  const hash=location.hash.slice(1);
-  if(hash.startsWith('material/')) {
+  window.CourseAttestation.captureView();
+  const hash=location.hash.slice(1),[path,query='']=hash.split('?');
+  document.body.classList.toggle('view-study',/^attestation\/(?:question\/|test\/run)/.test(path));
+  if(path.startsWith('material/')) {
     let id;
-    try{id=decodeURIComponent(hash.slice(9).replace(/\/notes$/,''))}catch{location.hash='';return}
-    if(active?.id!==id||$('#detail').hidden)if(!showDetail(id))return;
-    toggleNotes(hash.endsWith('/notes'));return;
+    try{id=decodeURIComponent(path.slice(9).replace(/\/notes$/,''))}catch{location.hash='';return}
+    const oldContext=materialContext.toString();materialContext=new URLSearchParams(query);
+    const changed=active?.id!==id||$('#detail').hidden;
+    if(changed){if(!showDetail(id))return}else if(oldContext!==materialContext.toString())setupDocument();
+    toggleNotes(path.endsWith('/notes'));return;
   }
   const previousId=active?.id;
   stopPlayer();$('#documentReader').removeAttribute('src');active=null;
-  $('#detail').hidden=true;$('#library').hidden=false;
+  $('#detail').hidden=true;
   document.body.classList.remove('view-material','view-document','view-notes');
+  const isAttestation=path==='attestation'||path.startsWith('attestation/');
+  $('#library').hidden=isAttestation;$('#attestation').hidden=!isAttestation;
+  if(isAttestation){section='attestation';$('#mobileSection').value=section;renderNav();window.CourseAttestation.render(hash);return}
   document.title='Мой курс — Гендерная психология';
   const oldSection=section;
-  section=courses.some(c=>c.id===hash)?hash:'all';
+  section=courses.some(c=>c.id===path)?path:'all';
   $('#mobileSection').value=section;renderNav();render();
   if(previousId)Array.from(document.querySelectorAll('[data-open]')).find(el=>el.dataset.open===previousId)?.focus({preventScroll:true});
   window.scrollTo(0,oldSection===section?libraryScroll:0);
@@ -122,24 +132,36 @@ $('#courseVideo').addEventListener('playing',()=>{$('#playerStatus').textContent
 $('#courseVideo').addEventListener('error',()=>{if(!$('#courseVideo').getAttribute('src'))return;const selected=$('#videoSource').value;$('#playerStatus').textContent=selected==='local'?'Локальная копия недоступна на этом устройстве. Выберите сервер школы или резервное хранилище.':'Не удалось загрузить видео. Попробуйте ещё раз, откройте его в новой вкладке или выберите резервный источник.'});
 $('#saveBackup').addEventListener('click',()=>{if(!active)return;const raw=$('#backupUrl').value.trim(),url=safeBackup(raw);if(raw&&!url){$('#backupStatus').textContent='Введите прямую HTTPS-ссылку без логина и пароля в адресе.';return}const selected=$('#videoSource').value;progress(active.id).backupUrl=url;if(!save())return;fillSources(selected);if(selected==='backup')loadVideo();$('#backupStatus').textContent=url?'Ссылка сохранена.':'Ссылка удалена.'});
 
-function setupDocument(){const show=active.kind==='document';$('#documentPanel').hidden=!show;document.body.classList.toggle('view-document',show);$('#documentReader').removeAttribute('src');if(!show)return;$('#openLabel').textContent='Скачать оригинал';$('#detailOpen').title='Скачать оригинал · '+active.format;$('#openIcon').innerHTML=icon('download');$('#detailOpen').setAttribute('download','');const preview=window.PREVIEW_MANIFEST?.[active.id];$('#documentReader').hidden=!preview?.path;$('#documentError').hidden=!!preview?.path;if(preview?.path){$('#documentReader').src='reader.html?file='+encodeURIComponent(preview.path);$('#documentReader').title=active.title}else{$('#documentError').textContent='Предпросмотр пока недоступен. Можно скачать оригинал.'}}
+function setupDocument(){
+  const show=active.kind==='document';$('#documentPanel').hidden=!show;document.body.classList.toggle('view-document',show);
+  $('#documentReader').removeAttribute('src');$('#sourceContext').hidden=true;if(!show)return;
+  $('#openLabel').textContent='Скачать оригинал';$('#detailOpen').title='Скачать оригинал · '+active.format;$('#openIcon').innerHTML=icon('download');$('#detailOpen').setAttribute('download','');
+  const preview=window.PREVIEW_MANIFEST?.[active.id];$('#documentReader').hidden=!preview?.path;$('#documentError').hidden=!!preview?.path;
+  if(preview?.path){
+    const params=new URLSearchParams({file:preview.path});const sourceId=materialContext.get('source'),source=window.ATTESTATION_DATA?.sources[sourceId];
+    if(source&&source.materialId===active.id){params.set('page',source.page);params.set('source',sourceId);
+      $('#sourceContext').hidden=false;$('#sourceContext').innerHTML=`<p><strong>Источник ответа · страница ${source.page}</strong> · ${esc(source.section)}</p><details><summary>Цитата из ответа</summary><blockquote>${esc(source.quote)}</blockquote></details>`;
+    }else if(/^\d+$/.test(materialContext.get('page')||''))params.set('page',materialContext.get('page'));
+    $('#documentReader').src='reader.html?'+params;$('#documentReader').title=active.title;
+  }else $('#documentError').textContent='Предпросмотр пока недоступен. Можно скачать оригинал.';
+}
 
 function toggleNotes(show) {
   const wasNotes=document.body.classList.contains('view-notes');
   document.body.classList.toggle('view-notes',show);
-  $('#backLabel').textContent=show?'К материалу':'Материалы';
-  $('#close').setAttribute('aria-label',show?'Назад к материалу':'Назад к материалам');
+  $('#backLabel').textContent=show?'К материалу':detailBack().startsWith('attestation/question/')?'К ответу':detailBack().startsWith('attestation')?'Аттестация':'Материалы';
+  $('#close').setAttribute('aria-label',show?'Назад к материалу':'Назад: '+$('#backLabel').textContent);
   $('#notesPanel').hidden=!show;
   $('#materialMenu').open=false;
   if(show){$('#courseVideo').pause();$('#note').focus()}
   else (wasNotes?$('#showNotes'):$('#close')).focus({preventScroll:true});
 }
-$('#showNotes').onclick=()=>{location.hash='material/'+encodeURIComponent(active.id)+'/notes'};
+$('#showNotes').onclick=()=>{location.hash=materialHash(true)};
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
   const openMenu=document.querySelector('.action-menu[open]');
   if(openMenu){openMenu.open=false;openMenu.querySelector('summary').focus();return}
-  if(!$('#notesPanel').hidden&&active)location.hash='material/'+encodeURIComponent(active.id);
+  if(!$('#notesPanel').hidden&&active)location.hash=materialHash();
 });
 document.addEventListener('click',e=>{
   document.querySelectorAll('.action-menu[open]').forEach(menu=>{if(!menu.contains(e.target))menu.open=false});
