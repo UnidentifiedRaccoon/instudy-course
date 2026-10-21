@@ -31,7 +31,7 @@ window.CourseAttestation = (() => {
   function frame(title,body,back='attestation',label='Аттестация'){
     return `<a class="att-back" href="#${back}">${icon('back')}${label}</a><header class="att-heading"><h1 id="attTitle" tabindex="-1">${title}</h1></header>${body}`;
   }
-  function badge(q){return q.status==='missing'?'<span class="att-status">Нет ответа</span>':q.status==='partial'?'<span class="att-status">Частичный ответ</span>':''}
+  function badge(q){return q.status==='missing'?'<span class="att-status">Нет ответа</span>':q.status==='partial'?'<span class="att-status">Требует уточнения</span>':q.answerBasis==='external'?'<span class="att-caption att-basis">Внешний источник</span>':''}
   function overview(){
     const partial=questions.filter(q=>q.status!=='ready');
     host.innerHTML=frame('Аттестация',`<p class="att-lead">Гендерная психология 2 · 54 вопроса</p>
@@ -49,7 +49,7 @@ window.CourseAttestation = (() => {
   }
   function updateList(){
     const term=search.trim().toLocaleLowerCase('ru'),number=/^\d+$/.test(term)?Number(term):null;
-    const found=questions.filter(q=>(group==='all'||q.group===group)&&(coverage==='all'||q.status!=='ready')&&(!term||(number!==null?q.id===number:`${q.title} ${q.question} ${q.answer}`.toLocaleLowerCase('ru').includes(term))));
+    const found=questions.filter(q=>(group==='all'||q.group===group)&&(coverage==='all'||q.status!=='ready')&&(!term||(number!==null?q.id===number:`${q.title} ${q.question} ${q.answer} ${(q.externalStudy||[]).map(b=>b.text||[b.lead,...b.items].join(' ')).join(' ')}`.toLocaleLowerCase('ru').includes(term))));
     host.querySelector('#attCount').textContent=`${found.length} из 54 вопросов`;
     host.querySelector('#attList').innerHTML=groups.map(g=>{const entries=found.filter(q=>q.group===g);return entries.length?`<section class="att-section"><h2>${escape(g)}</h2><ol class="att-question-list">${entries.map(q=>`<li><a href="#attestation/question/${q.id}"><span class="att-number">${q.id}.</span><span>${escape(q.title)}${badge(q)}</span>${icon('chevron')}</a></li>`).join('')}</ol></section>`:''}).join('')||'<p class="empty">Ничего не найдено. Измените запрос или выберите все темы.</p>';
   }
@@ -57,8 +57,8 @@ window.CourseAttestation = (() => {
     const match=text.match(/^(.{1,28}?)( — |: )/);
     return match?`<strong>${escape(match[1])}</strong>${escape(text.slice(match[1].length))}`:escape(text);
   }
-  function studyMarkup(q){
-    return (q.study||[{type:'paragraph',text:q.answer}]).map(block=>{
+  function studyMarkup(q,blocks=q.study||[{type:'paragraph',text:q.answer}]){
+    return blocks.map(block=>{
       const heading=block.label?`<h3>${escape(block.label)}</h3>`:'';
       if(block.type==='paragraph')return `<div class="att-answer-block">${heading}<p>${emphasize(block.text)}</p></div>`;
       const numbered=block.items.every(s=>/^\d+\. /.test(s)),tag=block.ordered||numbered?'ol':'ul';
@@ -72,6 +72,15 @@ window.CourseAttestation = (() => {
   function sourcesMarkup(q){
     const docs=new Map();for(const id of q.sources){const s=data.sources[id];if(!docs.has(s.materialId))docs.set(s.materialId,[]);docs.get(s.materialId).push(id)}
     return [...docs.values()].map(ids=>`<section class="att-source-document"><h3>${escape(data.sources[ids[0]].title)}</h3><p class="att-caption">${escape(data.sources[ids[0]].course)}</p>${ids.map(id=>sourceMarkup(id,q)).join('')}</section>`).join('');
+  }
+  function externalSourcesMarkup(q){
+    if(!q.externalSources?.length)return '';
+    return `<section class="att-external-sources"><h3>Внешние источники</h3><p class="att-caption">Материалы вне курса. Ссылки открываются в новой вкладке.</p>${q.externalSources.map(s=>`<section class="att-source"><h4>${escape(s.title)}</h4><p class="att-caption">${escape(s.author)}<br>${escape(s.location)}</p><p>${escape(s.description)}</p><a class="att-source-link" href="${escape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть внешний источник: ${escape(s.title)} (новая вкладка)">Открыть источник ↗</a></section>`).join('')}</section>`;
+  }
+  function evidenceMarkup(q){
+    const external=!!q.externalSources?.length;
+    const course=`${external?'<h3 class="att-evidence-label">Материалы курса</h3>':''}<p class="att-caption">${q.courseSourceNote?escape(q.courseSourceNote):q.status==='missing'?escape(q.note):'Ниже — дословные цитаты из курса.'} Ссылки открывают нужную страницу и выделяют фрагмент.</p>${sourcesMarkup(q)}`;
+    return `<details class="att-disclosure att-evidence" data-fold="sources"><summary>${q.status==='missing'?'Связанный материал':'Цитаты и источники'} <span>${external?'курс и внешние':`${q.sources.length} ${q.sources.length===1?'фрагмент':q.sources.length<5?'фрагмента':'фрагментов'}`}</span></summary>${externalSourcesMarkup(q)}${course}</details>`;
   }
   function optionsMarkup(q,order,selected){
     const checked=selected!==undefined;
@@ -89,18 +98,18 @@ window.CourseAttestation = (() => {
       ${run?.ids.includes(q.id)?`<a class="att-back-to-test" href="#attestation/test/run">${icon('back')}${run.index>=run.ids.length?'К результату тренировки':'Вернуться к тренировке'}</a>`:''}
       <section class="att-study"><div class="att-answer-heading"><h2>${q.status==='missing'?'Что есть в материалах':'План ответа'}</h2>${q.status==='missing'?'':`<button class="att-text-button" id="toggleAnswer" aria-expanded="${!recall}" aria-controls="studyAnswer">${recall?'Показать ответ':'Скрыть ответ'}</button>`}</div>
       ${q.status==='partial'?`<p class="att-note">${escape(q.note)}</p>`:''}
-      <div id="studyAnswer" class="att-answer" ${recall&&q.status!=='missing'?'hidden':''}>${studyMarkup(q)}${q.note&&q.status==='ready'?`<p class="att-note">${escape(q.note)}</p>`:''}</div>
+      <div id="studyAnswer" class="att-answer" ${recall&&q.status!=='missing'?'hidden':''}>${q.answerBasis==='external'?`<p class="att-caption">Ответ по внешнему источнику · ${escape(q.externalSources[0].author)}</p>`:''}${studyMarkup(q)}${q.externalStudy?.length?`<section class="att-external-answer"><h3>Дополнение из внешних источников</h3>${studyMarkup(q,q.externalStudy)}</section>`:''}${q.note&&q.status==='ready'?`<p class="att-note">${escape(q.note)}</p>`:''}</div>
       <p id="recallPrompt" class="att-caption" ${recall&&q.status!=='missing'?'':'hidden'}>Ответьте вслух, затем откройте план и сравните.</p></section>
       ${q.quiz?`<details class="att-disclosure att-topic-check" data-fold="topic-check"><summary>Проверить себя <span>1 вопрос</span></summary><div id="topicQuizContent">${inlineMarkup(q)}</div></details>`:''}
       <nav class="att-pagination" aria-label="Вопросы аттестации">${q.id>1?`<a href="#attestation/question/${q.id-1}">${icon('back')}Предыдущий</a>`:'<span></span>'}${q.id<54?`<a href="#attestation/question/${q.id+1}">Следующий${icon('forward')}</a>`:'<a href="#attestation/answers">Все вопросы</a>'}</nav>
-      <details class="att-disclosure att-evidence" data-fold="sources"><summary>${q.status==='missing'?'Связанный материал':'Цитаты и источники'} <span>${q.sources.length} ${q.sources.length===1?'фрагмент':q.sources.length<5?'фрагмента':'фрагментов'}</span></summary><p class="att-caption">${q.status==='missing'?escape(q.note):'План выше — краткое изложение. Ниже — дословные цитаты.'} Ссылки открывают нужную страницу и выделяют фрагмент.</p>${sourcesMarkup(q)}</details>`,'attestation/answers','Все вопросы');
+      ${evidenceMarkup(q)}`,'attestation/answers','Все вопросы');
   }
   function testStart(params){
     const target=byId.get(Number(params.get('question'))),single=!!target?.quiz;
     host.innerHTML=frame('Тренировка',`<p class="att-lead">Выберите один из четырёх ответов и сразу проверьте себя.</p>
       ${run?`<div class="att-resume"><a class="att-primary" href="#attestation/test/run">${run.index>=run.ids.length?'Результат последней попытки':'Продолжить тренировку'} ${icon('forward')}</a><p class="att-caption">Проверено ${Object.keys(run.answers).length} из ${run.ids.length}</p></div>`:''}
       <form id="testSetup" class="att-setup">${run?'<h2>Новая попытка</h2>':''}<label>Тема<select name="topic"><option value="all">Все темы</option>${groups.map(g=>`<option value="${escape(g)}">${escape(g)}</option>`).join('')}${single?`<option value="q${target.id}" selected>${target.id}. ${escape(target.title)}</option>`:''}</select></label><label>Объём<select name="count"><option value="10">${single?'1 вопрос':'10 вопросов'}</option><option value="all">Все по выбранной теме</option></select></label><button class="${run?'att-secondary':'att-primary'}" type="submit">${run?'Начать заново':'Начать тренировку'} ${icon('forward')}</button>${run?'<p class="att-caption">Новая попытка заменит сохранённую.</p>':''}</form>
-      <details class="att-disclosure" data-fold="test-info"><summary>О тренировке</summary><p>53 учебных вопроса по ключевым понятиям курса. Вопрос о драйверах не включён: в материалах нет подтверждённого ответа.</p><p class="att-caption">Это не официальный экзамен. Вопросы и варианты перемешиваются. Попытка сохраняется в этом браузере.</p></details>`);
+      <details class="att-disclosure" data-fold="test-info"><summary>О тренировке</summary><p>53 учебных вопроса по ключевым понятиям курса. Ответ о драйверах дополнен внешним источником и доступен для изучения; в тренировку он не включён. Вопросы № 14 и № 21 проверяют подтверждённые понятия курса, а не версии, требующие уточнения.</p><p class="att-caption">Это не официальный экзамен. Вопросы и варианты перемешиваются. Попытка сохраняется в этом браузере.</p></details>`);
   }
   function score(){return run.ids.filter(id=>run.answers[id]===byId.get(id).quiz.correct).length}
   function testRun(){

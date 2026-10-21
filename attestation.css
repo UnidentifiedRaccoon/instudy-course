@@ -56,6 +56,12 @@
 .att-answer-block li { margin:8px 0; padding-left:4px; }
 .att-answer-block li strong { font-weight:700; }
 .att-note { background:#f5efdf; padding:14px 16px; border-radius:var(--radius); color:#674b22; font-size:14px; line-height:1.7; }
+.att-basis { display:block; }
+.att-external-answer { border-top:1px solid var(--line); margin-top:24px; padding-top:20px; }
+.att-external-answer > h3, .att-external-sources > h3, .att-evidence-label { font-size:16px; margin:0 0 12px; }
+.att-external-sources { margin:12px 0 32px; }
+.att-external-sources .att-source { font-size:15px; }
+.att-external-sources .att-source p { margin:8px 0; }
 .att-pagination { display:flex; justify-content:space-between; gap:16px; padding:12px 0 24px; margin:12px 0 0; }
 .att-pagination a { display:inline-flex; gap:8px; align-items:center; min-height:44px; font-size:14px; }
 .att-evidence { margin-top:8px; }

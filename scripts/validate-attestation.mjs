@@ -25,7 +25,18 @@ for(const q of data.questions){
  }).join('');
  const words=s=>s.toLocaleLowerCase('ru').replace(/[^\p{L}\p{N}]/gu,'');
  assert.equal(words(studyText),words(q.answer),`Answer wording changed in question ${q.id}`);
+ if(q.externalStudy||q.answerBasis==='external')assert(q.externalSources?.length,`Uncited external answer ${q.id}`);
+ for(const block of q.externalStudy||[]){
+  assert(['paragraph','list'].includes(block.type),`Invalid external block ${q.id}`);
+  assert(block.type==='paragraph'?block.text?.trim():block.items?.length>1,`Empty external block ${q.id}`);
+ }
+ for(const source of q.externalSources||[]){
+  assert(source.title&&source.author&&source.location&&source.description,`Incomplete external source ${q.id}`);
+  assert.equal(new URL(source.url).protocol,'https:',`Unsafe external link ${q.id}`);
+ }
 }
+assert.equal(data.questions.filter(q=>q.status!=='ready').map(q=>q.id).join(','),'14,21','Keep the two unresolved exam questions marked');
+assert.equal(data.questions.find(q=>q.id===41).answerBasis,'external','Drivers must not be attributed to the course');
 for(const [id,source] of Object.entries(data.sources)){
  const material=materials.get(source.materialId),preview=PREVIEW_MANIFEST[source.materialId];
  assert(material?.kind==='document'&&preview,`Unknown document ${id}`);
