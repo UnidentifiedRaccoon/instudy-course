@@ -88,6 +88,8 @@
 #quizForm legend, #inlineQuiz legend { font-size:21px; line-height:1.5; font-weight:650; margin-bottom:24px; max-width:60ch; }
 #inlineQuiz legend { font-size:17px; }
 .att-options { display:grid; gap:12px; }
+.att-quiz-source { margin:0 0 16px; }
+.att-quiz-source a { display:inline-flex; align-items:center; min-height:44px; }
 .att-option { display:flex; gap:14px; align-items:flex-start; padding:16px 20px; min-height:60px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); cursor:pointer; }
 .att-option:has(input:checked) { border-color:var(--ink); background:var(--selected); }
 .att-option:has(input:focus-visible) { outline:2px solid var(--focus); outline-offset:3px; }

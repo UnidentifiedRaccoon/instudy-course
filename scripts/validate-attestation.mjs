@@ -14,6 +14,11 @@ for(const q of data.questions){
  if(q.status!=='ready')assert(q.note,`Missing explanation for question ${q.id}`);
  for(const id of q.sources)assert(data.sources[id],`Missing source ${id}`);
  if(q.quiz){assert.equal(q.quiz.options.length,4);assert.equal(new Set(q.quiz.options).size,4);assert(Number.isInteger(q.quiz.correct)&&q.quiz.correct>=0&&q.quiz.correct<4)}
+ if(q.quiz?.externalSource!==undefined){
+  assert(Number.isInteger(q.quiz.externalSource)&&q.quiz.externalSource>=0,`Invalid quiz source ${q.id}`);
+  assert(q.externalSources?.[q.quiz.externalSource],`Uncited external exercise ${q.id}`);
+ }
+ if(q.quiz&&q.answerBasis==='external')assert(q.quiz.externalSource!==undefined,`External exercise must be labeled ${q.id}`);
  if(q.status==='missing')assert.equal(q.quiz,null);
  // Formatting must retain every word of the reviewed answer, including qualifications.
  assert(q.study?.length,`No study structure for question ${q.id}`);
