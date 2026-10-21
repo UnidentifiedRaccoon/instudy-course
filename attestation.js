@@ -8,12 +8,19 @@ window.CourseAttestation = (() => {
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const key='instudy-attestation-practice-v1',readingKey='instudy-attestation-reading-v1';
   const questions=data.questions,byId=new Map(questions.map(q=>[q.id,q])),groups=[...new Set(questions.map(q=>q.group))];
-  const views=new Map(),inlineChecks=new Map();
+  // Keep the original numeric exercise IDs so saved attempts retain their meaning.
+  const exercises=questions.flatMap(q=>q.quiz?[{...q,exerciseId:q.id},...(q.additionalQuizzes||[]).map(quiz=>({...q,quiz,exerciseId:quiz.key}))]:[]);
+  const exerciseById=new Map(exercises.map(q=>[String(q.exerciseId),q]));
+  const exercisesFor=q=>exercises.filter(e=>e.id===q.id);
+  const exerciseTitle=q=>q.quiz.driver?`${q.id}. Драйвер «${q.quiz.driver}»`:`${q.id}. ${q.title}`;
+  const poolFor=topic=>exercises.filter(q=>topic==='all'||topic===q.group||topic==='q'+q.id);
+  const exerciseCount=n=>`${n} ${n%10===1&&n%100!==11?'упражнение':n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?'упражнения':'упражнений'}`;
+  const views=new Map(),inlineChecks=new Map(),inlinePositions=new Map();
   let search='',group='all',coverage='all',run=null,lastQuestion=null,currentRoute='',recall=false;
   const shuffled=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
   function readRun(raw){
-    if(!raw||raw.version!==data.version||!Array.isArray(raw.ids)||!raw.ids.length||raw.ids.length>questions.length)return null;
-    if(new Set(raw.ids).size!==raw.ids.length||raw.ids.some(id=>!byId.get(id)?.quiz))return null;
+    if(!raw||raw.version!==data.version||!Array.isArray(raw.ids)||!raw.ids.length||raw.ids.length>exercises.length)return null;
+    if(new Set(raw.ids.map(String)).size!==raw.ids.length||raw.ids.some(id=>!exerciseById.has(String(id))))return null;
     if(!Number.isInteger(raw.index)||raw.index<0||raw.index>raw.ids.length)return null;
     if(!raw.orders||typeof raw.orders!=='object'||!raw.answers||typeof raw.answers!=='object')return null;
     for(const id of raw.ids){if(!Array.isArray(raw.orders[id])||[...raw.orders[id]].sort().join()!=='0,1,2,3')return null;
@@ -87,53 +94,57 @@ window.CourseAttestation = (() => {
     return `${external?`<p class="att-caption att-quiz-source">Внешний источник: <a href="${escape(external.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escape(external.title)} — новая вкладка">${escape(external.author)} ↗</a></p>`:''}<fieldset><legend>${escape(q.quiz.prompt)}</legend><div class="att-options">${order.map(choice=>`<label class="att-option ${checked?(choice===q.quiz.correct?'is-correct':choice===selected?'is-wrong':''):''}"><input type="radio" name="answer" value="${choice}" ${selected===choice?'checked':''} ${checked?'disabled':''}><span>${escape(q.quiz.options[choice])}${checked&&choice===q.quiz.correct?'<small>Правильный ответ</small>':checked&&choice===selected?'<small>Ваш ответ</small>':''}</span></label>`).join('')}</div></fieldset>${checked?'':'<button type="submit" class="att-primary" data-check disabled>Проверить</button>'}`;
   }
   function inlineMarkup(q){
-    if(!inlineChecks.has(q.id))inlineChecks.set(q.id,{order:shuffled([0,1,2,3])});
-    const state=inlineChecks.get(q.id),checked=state.selected!==undefined;
-    return `<form id="inlineQuiz" data-question="${q.id}">${optionsMarkup(q,state.order,state.selected)}</form>${checked?`<p id="inlineFeedback" class="att-inline-feedback ${state.selected===q.quiz.correct?'is-correct':'is-wrong'}" role="status" tabindex="-1"><strong>${state.selected===q.quiz.correct?'Да, верно.':'Нет, неверно.'}</strong>${state.selected===q.quiz.correct?'':` Правильный ответ: ${escape(q.quiz.options[q.quiz.correct])}.`}${q.quiz.explanation?` ${escape(q.quiz.explanation)}`:''}</p>`:''}`;
+    const items=exercisesFor(q),index=inlinePositions.get(q.id)||0,e=items[index],id=String(e.exerciseId);
+    if(!inlineChecks.has(id))inlineChecks.set(id,{order:shuffled([0,1,2,3])});
+    const state=inlineChecks.get(id),checked=state.selected!==undefined,last=index===items.length-1;
+    const score=items.filter(item=>inlineChecks.get(String(item.exerciseId))?.selected===item.quiz.correct).length;
+    return `${items.length>1?`<p class="att-caption">Упражнение ${index+1} из ${items.length}</p>`:''}<form id="inlineQuiz" data-question="${q.id}" data-exercise="${escape(id)}">${optionsMarkup(e,state.order,state.selected)}</form>${checked?`<p id="inlineFeedback" class="att-inline-feedback ${state.selected===e.quiz.correct?'is-correct':'is-wrong'}" role="status" tabindex="-1"><strong>${state.selected===e.quiz.correct?'Да, верно.':'Нет, неверно.'}</strong>${state.selected===e.quiz.correct?'':` Правильный ответ: ${escape(e.quiz.options[e.quiz.correct])}.`}${e.quiz.explanation?` ${escape(e.quiz.explanation)}`:''}</p>${items.length>1?`${last?`<p class="att-inline-result">Верно: ${score} из ${items.length}</p>`:''}<button class="att-secondary" id="inlineNext" data-question="${q.id}">${last?'Пройти ещё раз':'Следующее упражнение'}</button>`:''}`:''}`;
   }
   function answer(id){
     const q=byId.get(Number(id));if(!q){location.hash='attestation/answers';return}
     lastQuestion=q.id;try{localStorage.setItem(readingKey,String(lastQuestion))}catch{}
     host.innerHTML=frame(escape(q.question),`<p class="att-caption att-question-meta">Вопрос ${q.id} из 54 · ${escape(q.group)} ${badge(q)}</p>
-      ${run?.ids.includes(q.id)?`<a class="att-back-to-test" href="#attestation/test/run">${icon('back')}${run.index>=run.ids.length?'К результату тренировки':'Вернуться к тренировке'}</a>`:''}
+      ${run?.ids.some(id=>exerciseById.get(String(id)).id===q.id)?`<a class="att-back-to-test" href="#attestation/test/run">${icon('back')}${run.index>=run.ids.length?'К результату тренировки':'Вернуться к тренировке'}</a>`:''}
       <section class="att-study"><div class="att-answer-heading"><h2>${q.status==='missing'?'Что есть в материалах':'План ответа'}</h2>${q.status==='missing'?'':`<button class="att-text-button" id="toggleAnswer" aria-expanded="${!recall}" aria-controls="studyAnswer">${recall?'Показать ответ':'Скрыть ответ'}</button>`}</div>
       ${q.status==='partial'?`<p class="att-note">${escape(q.note)}</p>`:''}
       <div id="studyAnswer" class="att-answer" ${recall&&q.status!=='missing'?'hidden':''}>${q.answerBasis==='external'?`<p class="att-caption">Ответ по внешнему источнику · ${escape(q.externalSources[0].author)}</p>`:''}${studyMarkup(q)}${q.externalStudy?.length?`<section class="att-external-answer"><h3>Дополнение из внешних источников</h3>${studyMarkup(q,q.externalStudy)}</section>`:''}${q.note&&q.status==='ready'?`<p class="att-note">${escape(q.note)}</p>`:''}</div>
       <p id="recallPrompt" class="att-caption" ${recall&&q.status!=='missing'?'':'hidden'}>Ответьте вслух, затем откройте план и сравните.</p></section>
-      ${q.quiz?`<details class="att-disclosure att-topic-check" data-fold="topic-check"><summary>Проверить себя <span>1 вопрос</span></summary><div id="topicQuizContent">${inlineMarkup(q)}</div></details>`:''}
+      ${q.quiz?`<details class="att-disclosure att-topic-check" data-fold="topic-check"><summary>Проверить себя <span>${exerciseCount(exercisesFor(q).length)}</span></summary><div id="topicQuizContent">${inlineMarkup(q)}</div></details>`:''}
       <nav class="att-pagination" aria-label="Вопросы аттестации">${q.id>1?`<a href="#attestation/question/${q.id-1}">${icon('back')}Предыдущий</a>`:'<span></span>'}${q.id<54?`<a href="#attestation/question/${q.id+1}">Следующий${icon('forward')}</a>`:'<a href="#attestation/answers">Все вопросы</a>'}</nav>
       ${evidenceMarkup(q)}`,'attestation/answers','Все вопросы');
   }
   function testStart(params){
-    const target=byId.get(Number(params.get('question'))),single=!!target?.quiz;
+    const target=byId.get(Number(params.get('question'))),focused=!!target?.quiz;
+    const topics=questions.filter(q=>q.additionalQuizzes?.length||focused&&q.id===target.id);
+    const externalCount=exercises.filter(q=>q.quiz.externalSource!==undefined).length;
     host.innerHTML=frame('Тренировка',`<p class="att-lead">Выберите один из четырёх ответов и сразу проверьте себя.</p>
       ${run?`<div class="att-resume"><a class="att-primary" href="#attestation/test/run">${run.index>=run.ids.length?'Результат последней попытки':'Продолжить тренировку'} ${icon('forward')}</a><p class="att-caption">Проверено ${Object.keys(run.answers).length} из ${run.ids.length}</p></div>`:''}
-      <form id="testSetup" class="att-setup">${run?'<h2>Новая попытка</h2>':''}<label>Тема<select name="topic"><option value="all">Все темы</option>${groups.map(g=>`<option value="${escape(g)}">${escape(g)}</option>`).join('')}${single?`<option value="q${target.id}" selected>${target.id}. ${escape(target.title)}</option>`:''}</select></label><label>Объём<select name="count"><option value="10">${single?'1 вопрос':'10 вопросов'}</option><option value="all">Все по выбранной теме</option></select></label><button class="${run?'att-secondary':'att-primary'}" type="submit">${run?'Начать заново':'Начать тренировку'} ${icon('forward')}</button>${run?'<p class="att-caption">Новая попытка заменит сохранённую.</p>':''}</form>
-      <details class="att-disclosure" data-fold="test-info"><summary>О тренировке</summary><p>${questions.filter(q=>q.quiz).length} учебных вопроса: 53 по материалам курса и один о драйверах по внешнему источнику Julie Hay. Внешний источник отмечен рядом с упражнением. Вопросы № 14 и № 21 проверяют подтверждённые понятия курса, а не версии, требующие уточнения.</p><p class="att-caption">Это не официальный экзамен. Вопросы и варианты перемешиваются. Попытка сохраняется в этом браузере.</p></details>`);
+      <form id="testSetup" class="att-setup">${run?'<h2>Новая попытка</h2>':''}<label>Тема<select name="topic"><option value="all">Все темы</option>${groups.map(g=>`<option value="${escape(g)}">${escape(g)}</option>`).join('')}${topics.map(q=>`<option value="q${q.id}" ${focused&&target.id===q.id?'selected':''}>${q.id}. ${escape(q.title)}</option>`).join('')}</select></label><label>Объём<select name="count"><option value="10">${exerciseCount(focused?Math.min(10,exercisesFor(target).length):10)}</option><option value="all">Все по выбранной теме</option></select></label><button class="${run?'att-secondary':'att-primary'}" type="submit">${run?'Начать заново':'Начать тренировку'} ${icon('forward')}</button>${run?'<p class="att-caption">Новая попытка заменит сохранённую.</p>':''}</form>
+      <details class="att-disclosure" data-fold="test-info"><summary>О тренировке</summary><p>${exerciseCount(exercises.length)}: ${exercises.length-externalCount} по материалам курса и ${externalCount} по всем пяти драйверам и разрешающим фразам из работы Julie Hay. Внешний источник отмечен рядом с каждым упражнением. Вопросы № 14 и № 21 проверяют подтверждённые понятия курса, а не версии, требующие уточнения.</p><p class="att-caption">Это не официальный экзамен. Упражнения и варианты перемешиваются. Попытка сохраняется в этом браузере.</p></details>`);
   }
-  function score(){return run.ids.filter(id=>run.answers[id]===byId.get(id).quiz.correct).length}
+  function score(){return run.ids.filter(id=>run.answers[id]===exerciseById.get(String(id)).quiz.correct).length}
   function testRun(){
     if(!run){location.hash='attestation/test';return}
     if(run.index>=run.ids.length){testResult();return}
-    const id=run.ids[run.index],q=byId.get(id),selected=run.answers[id],checked=selected!==undefined;
-    host.innerHTML=frame('Тренировка',`<div class="att-test-meta"><span>Вопрос ${run.index+1} из ${run.ids.length}</span><span>Верно: ${score()}</span></div><progress class="att-progress" value="${Object.keys(run.answers).length}" max="${run.ids.length}" aria-label="Проверенные вопросы"></progress>
+    const id=run.ids[run.index],q=exerciseById.get(String(id)),selected=run.answers[id],checked=selected!==undefined;
+    host.innerHTML=frame('Тренировка',`<div class="att-test-meta"><span>Упражнение ${run.index+1} из ${run.ids.length}</span><span>Верно: ${score()}</span></div><progress class="att-progress" value="${Object.keys(run.answers).length}" max="${run.ids.length}" aria-label="Проверенные упражнения"></progress>
       <form id="quizForm">${optionsMarkup(q,run.orders[id],selected)}</form><div id="quizFeedback" ${checked?'':'hidden'} role="status" tabindex="-1">${checked?feedback(q,selected):''}</div><p id="practiceNotice" class="att-caption" role="status"></p>`,'attestation/test','К тренировке');
   }
-  function feedback(q,selected){const right=selected===q.quiz.correct;return `<div class="att-feedback ${right?'is-correct':'is-wrong'}"><h2>${right?'Да, верно':'Нет, неверно'}</h2>${!right?`<p>Правильный ответ: <strong>${escape(q.quiz.options[q.quiz.correct])}</strong></p>`:''}${q.quiz.explanation?`<p>${escape(q.quiz.explanation)}</p>`:''}</div><button class="att-primary" id="nextQuestion">${run.index===run.ids.length-1?'Посмотреть результат':'Следующий вопрос'} ${icon('forward')}</button><div class="att-feedback-more"><a href="#attestation/question/${q.id}">Разобрать тему и источники ${icon('forward')}</a><details data-fold="explanation"><summary>Пояснение</summary><p>${escape(q.answer)}</p></details></div>`}
+  function feedback(q,selected){const right=selected===q.quiz.correct;return `<div class="att-feedback ${right?'is-correct':'is-wrong'}"><h2>${right?'Да, верно':'Нет, неверно'}</h2>${!right?`<p>Правильный ответ: <strong>${escape(q.quiz.options[q.quiz.correct])}</strong></p>`:''}${q.quiz.explanation?`<p>${escape(q.quiz.explanation)}</p>`:''}</div><button class="att-primary" id="nextQuestion">${run.index===run.ids.length-1?'Посмотреть результат':'Следующее упражнение'} ${icon('forward')}</button><div class="att-feedback-more"><a href="#attestation/question/${q.id}">Разобрать тему и источники ${icon('forward')}</a><details data-fold="explanation"><summary>Пояснение</summary><p>${escape(q.answer)}</p></details></div>`}
   function testResult(){
-    const wrong=run.ids.filter(id=>run.answers[id]!==byId.get(id).quiz.correct);
-    host.innerHTML=frame('Результат тренировки',`<p class="att-result">${score()} <span>из ${run.ids.length} верно</span></p><p>${wrong.length?'Повторите вопросы, которые вызвали затруднения.':'Все ответы верны. Можно перейти к другим темам.'}</p><div class="att-actions">${wrong.length?'<button class="att-primary" id="retryWrong">Повторить ошибки</button>':''}<a class="${wrong.length?'att-secondary':'att-primary'}" href="#attestation/test">Новая тренировка</a></div>
-      ${wrong.length?`<section class="att-section"><h2>Что повторить</h2><ul class="att-result-list">${wrong.map(id=>`<li><a href="#attestation/question/${id}">${id}. ${escape(byId.get(id).title)}</a></li>`).join('')}</ul></section>`:''}`);
+    const wrong=run.ids.filter(id=>run.answers[id]!==exerciseById.get(String(id)).quiz.correct);
+    host.innerHTML=frame('Результат тренировки',`<p class="att-result">${score()} <span>из ${run.ids.length} верно</span></p><p>${wrong.length?'Повторите упражнения, которые вызвали затруднения.':'Все ответы верны. Можно перейти к другим темам.'}</p><div class="att-actions">${wrong.length?'<button class="att-primary" id="retryWrong">Повторить ошибки</button>':''}<a class="${wrong.length?'att-secondary':'att-primary'}" href="#attestation/test">Новая тренировка</a></div>
+      ${wrong.length?`<section class="att-section"><h2>Что повторить</h2><ul class="att-result-list">${wrong.map(id=>{const q=exerciseById.get(String(id));return `<li><a href="#attestation/question/${q.id}">${escape(exerciseTitle(q))}</a></li>`}).join('')}</ul></section>`:''}`);
   }
   function focusTop(){host.querySelector('#attTitle')?.focus({preventScroll:true});window.scrollTo(0,0)}
   function start(ids){run={version:data.version,ids:shuffled(ids),index:0,answers:{},orders:Object.fromEntries(ids.map(id=>[id,shuffled([0,1,2,3])]))};views.delete('attestation/test/run');save();if(location.hash==='#attestation/test/run'){testRun();focusTop()}else location.hash='attestation/test/run'}
   host.addEventListener('input',e=>{if(e.target.id==='attQuery'){search=e.target.value;updateList()}if(e.target.name==='answer'){const button=e.target.form?.querySelector('[data-check]');if(button)button.disabled=false}});
-  host.addEventListener('change',e=>{if(e.target.id==='attGroup'){group=e.target.value;updateList()}if(e.target.id==='attCoverage'){coverage=e.target.value;updateList()}if(e.target.name==='topic'){const count=host.querySelector('[name=count] option[value="10"]');if(count)count.textContent=e.target.value.startsWith('q')?'1 вопрос':'10 вопросов'}});
+  host.addEventListener('change',e=>{if(e.target.id==='attGroup'){group=e.target.value;updateList()}if(e.target.id==='attCoverage'){coverage=e.target.value;updateList()}if(e.target.name==='topic'){const count=host.querySelector('[name=count] option[value="10"]');if(count)count.textContent=exerciseCount(Math.min(10,poolFor(e.target.value).length))}});
   host.addEventListener('submit',e=>{
     e.preventDefault();
     if(e.target.id==='testSetup'){
       const values=new FormData(e.target),topic=values.get('topic'),count=values.get('count');
-      const pool=questions.filter(q=>q.quiz&&(topic==='all'||topic===q.group||topic==='q'+q.id)).map(q=>q.id);
+      const pool=poolFor(topic).map(q=>q.exerciseId);
       start(shuffled(pool).slice(0,count==='all'?pool.length:Number(count)));
     }
     if(e.target.id==='quizForm'){
@@ -142,13 +153,20 @@ window.CourseAttestation = (() => {
       run.answers[id]=Number(choice);testRun();save();host.querySelector('#quizFeedback').focus({preventScroll:true});host.querySelector('#quizFeedback').scrollIntoView({block:'nearest'});
     }
     if(e.target.id==='inlineQuiz'){
-      const q=byId.get(Number(e.target.dataset.question)),choice=new FormData(e.target).get('answer'),state=inlineChecks.get(q.id);if(choice===null||state.selected!==undefined)return;
+      const q=byId.get(Number(e.target.dataset.question)),choice=new FormData(e.target).get('answer'),state=inlineChecks.get(e.target.dataset.exercise);if(choice===null||state.selected!==undefined)return;
       state.selected=Number(choice);host.querySelector('#topicQuizContent').innerHTML=inlineMarkup(q);host.querySelector('#inlineFeedback').focus({preventScroll:true});host.querySelector('#inlineFeedback').scrollIntoView({block:'nearest'});
     }
   });
   host.addEventListener('click',e=>{
     if(e.target.closest('#nextQuestion')){run.index++;save();views.delete('attestation/test/run');testRun();focusTop()}
-    if(e.target.closest('#retryWrong'))start(run.ids.filter(id=>run.answers[id]!==byId.get(id).quiz.correct));
+    if(e.target.closest('#retryWrong'))start(run.ids.filter(id=>run.answers[id]!==exerciseById.get(String(id)).quiz.correct));
+    const inlineNext=e.target.closest('#inlineNext');
+    if(inlineNext){
+      const q=byId.get(Number(inlineNext.dataset.question)),items=exercisesFor(q),index=inlinePositions.get(q.id)||0,last=index===items.length-1;
+      if(last)for(const item of items)inlineChecks.delete(String(item.exerciseId));
+      inlinePositions.set(q.id,last?0:index+1);host.querySelector('#topicQuizContent').innerHTML=inlineMarkup(q);
+      const legend=host.querySelector('#inlineQuiz legend');legend.tabIndex=-1;legend.focus({preventScroll:true});host.querySelector('#topicQuizContent').scrollIntoView({block:'start'});
+    }
     if(e.target.closest('#toggleAnswer')){recall=!recall;host.querySelector('#studyAnswer').hidden=recall;host.querySelector('#recallPrompt').hidden=!recall;const b=host.querySelector('#toggleAnswer');b.textContent=recall?'Показать ответ':'Скрыть ответ';b.setAttribute('aria-expanded',String(!recall));if(recall)host.querySelector('[data-fold="sources"]').open=false}
   });
   function render(hash){

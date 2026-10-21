@@ -106,6 +106,7 @@
 .att-feedback-more summary { min-height:44px; padding:10px 0; }
 .att-feedback-more p { white-space:pre-line; font-size:15px; }
 .att-inline-feedback { padding:12px 0; margin:12px 0 0; }
+.att-inline-result { font-weight:650; }
 .att-inline-feedback.is-correct { color:#24513d; }
 .att-inline-feedback.is-wrong { color:#783e2f; }
 .att-result { font-size:40px; font-weight:700; margin:24px 0; font-variant-numeric:tabular-nums; }
